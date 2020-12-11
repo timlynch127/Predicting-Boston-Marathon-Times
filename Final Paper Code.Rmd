@@ -1,0 +1,580 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r message=FALSE}
+library(tidyverse)
+library(readr)
+library(lubridate)
+library(roperators)
+library(kableExtra)
+library(ggplot2)
+library(modelr)
+library(purrr)
+library(broom)
+library(glmnet)
+
+marathon_results_2015_1 <- read_csv("marathon_results_2015_1.csv")
+marathon_results_2016_1 <- read_csv("marathon_results_2016_1.csv")
+marathon_results_2017_1 <- read_csv("marathon_results_2017_1.csv")
+```
+
+# Making Wave Variable
+```{r}
+Marathon2015 <- marathon_results_2015_1 %>%
+  mutate(Bib = as.numeric(Bib)) %>%
+  mutate(Wave = ifelse((is.na(Bib) | (Bib > 0 & Bib < 101)), "Elite", 
+                       ifelse(Bib >= 101 & Bib <= 7700, "One", 
+                              ifelse(Bib >= 8000 & Bib <= 15600, "Two", 
+                                     ifelse(Bib >= 16000 & Bib <= 23600, "Three", "Four"))))) 
+
+Marathon2016 <- marathon_results_2016_1 %>%
+  mutate(Bib = as.numeric(Bib)) %>%
+  mutate(Wave = ifelse((is.na(Bib) | (Bib > 0 & Bib < 101)), "Elite", 
+                       ifelse(Bib >= 101 & Bib <= 7700, "One", 
+                              ifelse(Bib >= 8000 & Bib <= 15600, "Two", 
+                                     ifelse(Bib >= 16000 & Bib <= 23600, "Three", "Four"))))) 
+
+
+
+Marathon2017 <- marathon_results_2017_1 %>%
+  mutate(Bib = as.numeric(Bib)) %>%
+  mutate(Wave = ifelse((is.na(Bib) | (Bib > 0 & Bib < 101)), "Elite", 
+                       ifelse(Bib >= 101 & Bib <= 7700, "One", 
+                              ifelse(Bib >= 8000 & Bib <= 15600, "Two", 
+                                     ifelse(Bib >= 16000 & Bib <= 23600, "Three", "Four"))))) 
+
+```
+
+# Adding Year Variable and rbinding datasets
+
+```{r echo=FALSE}
+Marathon2015$Year = 2015
+Marathon2016$Year = 2016
+Marathon2017$Year = 2017
+
+MarathonAll = rbind(Marathon2015, Marathon2016, Marathon2017)
+
+MarathonAll <- MarathonAll %>%
+  rename(OfficialTime = `Official Time`)
+
+#Converting to HR:MIN:SEC func
+CONVERT.func = function(x){
+  x = ((x - x %% 60) / 60) %+% ":" %+% trunc(x - (x - x %% 60)) %+% ":" %+% trunc(((x - (x - x %% 60)) -      trunc(x - (x - x %% 60))) * 60)
+}
+
+WaveMeans <- MarathonAll %>%
+  group_by(Wave, Year) %>%
+  summarize(mean(OfficialTime)) %>%
+  spread(key = Year, value = `mean(OfficialTime)`) %>%
+  arrange(`2015`)
+
+
+WaveMeans$`2015` = CONVERT.func(WaveMeans$`2015`)
+WaveMeans$`2016` = CONVERT.func(WaveMeans$`2016`)
+WaveMeans$`2017` = CONVERT.func(WaveMeans$`2017`)
+
+WaveMeans$`2015`[2] = "3:07:19"
+WaveMeans$`2017`[3] = "3:45:07"
+WaveMeans$`2017`[4] = "4:04:51"
+WaveMeans$`2017`[5] = "4:45:03"
+
+
+WaveMeans[6,1] = "All Runners"
+WaveMeans[6,2] = "3:46:26"
+WaveMeans[6,3] = "3:55:03"
+WaveMeans[6,4] = "3:58:05"
+
+kable(WaveMeans, caption = "Average Boston Marathon Times from 2015 to 2017 by Wave") %>%
+  kable_styling('striped', 'bordered')
+
+
+
+```
+
+```{r}
+
+
+
+Time = c(Marathon2015 %>% summarize(mean(`Official Time`)))
+Marathon2016 %>% summarize(mean(`Official Time`))
+Marathon2017 %>% summarize(mean(`Official Time`))
+
+
+```
+
+```{r}
+MarathonAll %>% ggplot(aes(x = AgeGroup, y = OfficialTime)) + geom_boxplot(aes(color = Gender), show.legend = TRUE) + ggtitle("Distribution of Boston Marathon Times By Age Group and Sex") + labs(x = "Age Division", y = "Official Marathon Time (min)") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+# Part 1: Modeling - Elastic Net Method - using Age variable
+
+```{r}
+
+
+MarathonAll1 = MarathonAll[,c("Age", "Gender", "OfficialTime", "Wave", "Year")] 
+head(MarathonAll1)
+
+y = MarathonAll1$OfficialTime
+X = model_matrix(MarathonAll1,OfficialTime~.*.)[,-1]
+var.names = names(X)
+dim(X)
+# 1st time with age instead of age group
+# 2nd time with agegroup instead of age
+```
+```{r}
+set.seed(216)
+cvmod.0=cv.glmnet(y=y,x=as.matrix(X),alpha=0)
+set.seed(216)
+cvmod.25=cv.glmnet(y=y,x=as.matrix(X),alpha=0.25)
+set.seed(216)
+cvmod.5=cv.glmnet(y=y,x=as.matrix(X),alpha=0.5)
+set.seed(216)
+cvmod.75=cv.glmnet(y=y,x=as.matrix(X),alpha=0.75)
+set.seed(216)
+cvmod.1=cv.glmnet(y=y,x=as.matrix(X),alpha=1)
+
+CV.0.ERROR=cvmod.0$cvm[which(cvmod.0$lambda==cvmod.0$lambda.1se)]
+CV.25.ERROR=cvmod.25$cvm[which(cvmod.25$lambda==cvmod.25$lambda.1se)]
+CV.5.ERROR=cvmod.5$cvm[which(cvmod.5$lambda==cvmod.5$lambda.1se)]
+CV.75.ERROR=cvmod.75$cvm[which(cvmod.75$lambda==cvmod.75$lambda.1se)]
+CV.1.ERROR=cvmod.1$cvm[which(cvmod.1$lambda==cvmod.1$lambda.1se)]
+
+MOD.RESULT=tibble(alpha=c(0,0.25,0.5,0.75,1),
+                  lambda=c(cvmod.0$lambda.1se,cvmod.25$lambda.1se,
+                           cvmod.5$lambda.1se,cvmod.75$lambda.1se,
+                           cvmod.1$lambda.1se),
+                  CV.Error=c(CV.0.ERROR,CV.25.ERROR,CV.5.ERROR,
+                             CV.75.ERROR,CV.1.ERROR))
+print(MOD.RESULT)
+```
+
+```{r warning=FALSE}
+best.alpha=MOD.RESULT$alpha[which.min(MOD.RESULT$CV.Error)]
+best.lambda=MOD.RESULT$lambda[which.min(MOD.RESULT$CV.Error)]
+
+best.mod=glmnet(y=y,x=as.matrix(X),nlambda=1,lambda=best.lambda,alpha=best.alpha)
+best.coef=as.tibble(as.matrix(coef(best.mod)))
+best.coef2=best.coef %>% 
+              mutate(Parameter=c("Int",var.names)) %>%
+              rename(Estimate=s0) %>%
+              select(Parameter,Estimate)
+nonzero.best.coef=best.coef2 %>%
+                    filter(Estimate!=0)
+print(nonzero.best.coef,n=1e3)
+
+MarathonAll1$OfficialTime.hat=predict(best.mod,newx=as.matrix(X))
+
+ggplot(MarathonAll1) +
+  geom_point(aes(x=OfficialTime,y=OfficialTime.hat),color="lightskyblue2") +
+  geom_abline(a=0,b=1,linetype="dashed") +
+  theme_minimal() +
+  ylab("Predicted Official Marathon Time") +
+  xlab("Actual Marathon Time") +
+  xlim(120,650)
+
+ggplot(MarathonAll1) +
+  geom_histogram(aes(x=OfficialTime-OfficialTime.hat),fill="lightskyblue2", binwidth=10) +
+  theme_minimal() +
+  xlab("Residuals") +
+  ylab("Frequency")
+
+# make plot of residuals compared to x
+MarathonAll1 <- MarathonAll1 %>%
+      mutate(Residual = OfficialTime - OfficialTime.hat)
+
+ggplot(MarathonAll1, aes(OfficialTime, Residual)) +
+      geom_ref_line(h = 0) +
+      geom_point()
+```
+
+# Part 1 - Modeling using Elastic Method with Age Group
+
+```{r}
+MarathonAll2 = MarathonAll[,c("AgeGroup", "Gender", "OfficialTime", "Wave", "Year")] 
+head(MarathonAll2)
+
+y1 = MarathonAll2$OfficialTime
+X1= model_matrix(MarathonAll2,OfficialTime~.*.)[,-1]
+var.names = names(X1)
+dim(X1)
+```
+```{r}
+set.seed(216)
+cvmod.0=cv.glmnet(y=y1,x=as.matrix(X1),alpha=0)
+set.seed(216)
+cvmod.25=cv.glmnet(y=y1,x=as.matrix(X1),alpha=0.25)
+set.seed(216)
+cvmod.5=cv.glmnet(y=y1,x=as.matrix(X1),alpha=0.5)
+set.seed(216)
+cvmod.75=cv.glmnet(y=y1,x=as.matrix(X1),alpha=0.75)
+set.seed(216)
+cvmod.1=cv.glmnet(y=y1,x=as.matrix(X1),alpha=1)
+
+CV.0.ERROR=cvmod.0$cvm[which(cvmod.0$lambda==cvmod.0$lambda.1se)]
+CV.25.ERROR=cvmod.25$cvm[which(cvmod.25$lambda==cvmod.25$lambda.1se)]
+CV.5.ERROR=cvmod.5$cvm[which(cvmod.5$lambda==cvmod.5$lambda.1se)]
+CV.75.ERROR=cvmod.75$cvm[which(cvmod.75$lambda==cvmod.75$lambda.1se)]
+CV.1.ERROR=cvmod.1$cvm[which(cvmod.1$lambda==cvmod.1$lambda.1se)]
+
+MOD.RESULT1=tibble(alpha=c(0,0.25,0.5,0.75,1),
+                  lambda=c(cvmod.0$lambda.1se,cvmod.25$lambda.1se,
+                           cvmod.5$lambda.1se,cvmod.75$lambda.1se,
+                           cvmod.1$lambda.1se),
+                  CV.Error=c(CV.0.ERROR,CV.25.ERROR,CV.5.ERROR,
+                             CV.75.ERROR,CV.1.ERROR))
+print(MOD.RESULT1)
+```
+```{r warning=FALSE}
+est.alpha=MOD.RESULT1$alpha[which.min(MOD.RESULT1$CV.Error)]
+best.lambda=MOD.RESULT1$lambda[which.min(MOD.RESULT1$CV.Error)]
+
+best.mod=glmnet(y=y1,x=as.matrix(X1),nlambda=1,lambda=best.lambda,alpha=best.alpha)
+best.coef=as.tibble(as.matrix(coef(best.mod)))
+best.coef2=best.coef %>% 
+              mutate(Parameter=c("Int",var.names)) %>%
+              rename(Estimate=s0) %>%
+              select(Parameter,Estimate)
+nonzero.best.coef=best.coef2 %>%
+                    filter(Estimate!=0)
+print(nonzero.best.coef,n=1e3)
+
+MarathonAll2$OfficialTime.hat=predict(best.mod,newx=as.matrix(X1))
+
+ggplot(MarathonAll2) +
+  geom_point(aes(x=OfficialTime,y=OfficialTime.hat),color="lightskyblue2") +
+  geom_abline(a=0,b=1,linetype="dashed") +
+  theme_minimal() +
+  ylab("Predicted Official Marathon Time") +
+  xlab("Actual Marathon Time") +
+  xlim(120,650)
+
+ggplot(MarathonAll2) +
+  geom_histogram(aes(x=OfficialTime-OfficialTime.hat),fill="lightskyblue2", binwidth=10) +
+  theme_minimal() +
+  xlab("Residuals") +
+  ylab("Frequency")
+
+# make plot of residuals compared to x
+MarathonAll2 <- MarathonAll2 %>%
+      mutate(Residual = OfficialTime - OfficialTime.hat)
+
+ggplot(MarathonAll2, aes(OfficialTime, Residual)) +
+      geom_ref_line(h = 0) +
+      geom_point() 
+```
+
+Questions:
+- how to deal with horrendous residuals over x plot?
+- interpreting CV.Error - can I apply it to all three situations
+- future data science plans
+
+
+# PART 2 - Only Runners who ran all three years
+
+```{r}
+length(unique(Marathon2015$Name))
+length(unique(Marathon2016$Name))
+length(unique(Marathon2017$Name))
+
+# some non-unique names
+```
+```{r renaming variables to years}
+Marathon2015 <- Marathon2015 %>%
+  select(-Pace, -Year, -Overall, -GenderRank, -DivisionRank, -Wave, -AgeGroup, -Half, -Age, -Bib) %>%
+  rename(`5K15` = `5K`,
+         `10K15` = `10K`,
+         `15K15` = `15K`,
+         `20K15` = `20K`,
+         `25K15` = `25K`,
+         `30K15` = `30K`,
+         `35K15` = `35K`,
+         `40K15` = `40K`,
+         `OfficialTime15` = `Official Time`)
+
+Marathon2016 <- Marathon2016 %>%
+  select(-Pace, -Year, -Overall, -GenderRank, -DivisionRank, -Wave, -AgeGroup, -Half, -Age, -Bib) %>%
+  rename(`5K16` = `5K`,
+         `10K16` = `10K`,
+         `15K16` = `15K`,
+         `20K16` = `20K`,
+         `25K16` = `25K`,
+         `30K16` = `30K`,
+         `35K16` = `35K`,
+         `40K16` = `40K`,
+         `OfficialTime16` = `Official Time`,
+         )
+
+Marathon2017 <- Marathon2017 %>%
+  select(Age, `Official Time`, Gender, Wave, Name, Country, State, City, AgeGroup)
+```
+
+BOTHYEARS.func = function(x,y) {
+   for (i in seq_along(x)){ 
+      if (x$Name[i] %in% y$Name) {
+        z = y[i]
+      }
+   }
+}
+```{r}
+Marathon2015 <- Marathon2015 %>% select(-Gender)
+Marathon2016 <- Marathon2016 %>% select(-Gender)
+MarathonRepeat = inner_join(Marathon2015, Marathon2016, by = c("Name", "Country", "State", "City"))
+
+MarathonTrifecta = inner_join(MarathonRepeat, Marathon2017, by = c("Name", "Country", "State", "City"))
+
+
+```
+
+```{r}
+head(MarathonTrifecta)
+```
+- help give sense of distribution of runners who ran all three years
+- create spread variabe for 15/16
+- create model
+
+```{r}
+MarathonTrifecta1 <- MarathonTrifecta %>%
+  filter(!is.na(`5K15`) & !is.na(`10K15`) & !is.na(`15K15`) & !is.na(`20K15`) & !is.na(`25K15`) & !is.na(`30K15`) & !is.na(`35K15`) & !is.na(`40K15`) & !is.na(`5K16`) & !is.na(`10K16`) & !is.na(`15K16`) & !is.na(`20K16`) & !is.na(`25K16`) & !is.na(`30K16`) & !is.na(`35K16`) & !is.na(`40K16`)) %>% 
+  rename(
+    `OfficialTime17` = `Official Time`
+  )
+```
+
+```{r tables creating distribution of gender / age group }
+# Distribution of Runners Running Marathon for 3rd Consecutive Year in 2017 
+# Distribution of All 2017 Marathon Runners
+left_join(MarathonTrifecta %>% 
+  group_by(AgeGroup) %>% 
+  summarize(round(n() / length(MarathonTrifecta$Name) * 100, 2)) %>%
+  rename(`Runners in 3rd Consecutive Marathon` = `round(n()/length(MarathonTrifecta$Name) * 100, 2)`,
+         `Age Division` = AgeGroup) %>% 
+  mutate(`Runners in 3rd Consecutive Marathon` = `Runners in 3rd Consecutive Marathon` %+% "%"),
+Marathon2017 %>% 
+  group_by(AgeGroup) %>%
+  summarize(round(n() / length(Marathon2017$Name) * 100, 2)) %>%
+  rename(`All Runners` = `round(n()/length(Marathon2017$Name) * 100, 2)`,
+          `Age Division` = AgeGroup) %>%
+  mutate(`All Runners` = `All Runners` %+% "%"),
+by = "Age Division")
+
+left_join(MarathonTrifecta %>% 
+  group_by(Gender) %>% 
+  summarize(round(n() / length(MarathonTrifecta$Name) * 100, 2)) %>%
+  rename(`Runners in 3rd Consecutive Marathon` = `round(n()/length(MarathonTrifecta$Name) * 100, 2)`) %>% 
+  mutate(`Runners in 3rd Consecutive Marathon` = `Runners in 3rd Consecutive Marathon` %+% "%"),
+
+Marathon2017 %>% 
+  group_by(Gender) %>%
+  summarize(round(n() / length(Marathon2017$Name) * 100, 2)) %>%
+  rename(`All Runners` = `round(n()/length(Marathon2017$Name) * 100, 2)`) %>%
+  mutate(`All Runners` = `All Runners` %+% "%"),
+by = "Gender")
+
+# make into Kable (& shade?)
+```
+
+```{r average times for 3rd consecutive marathon}
+YearMeans <- c(mean(MarathonTrifecta1$OfficialTime15), mean(MarathonTrifecta1$OfficialTime16), mean(MarathonTrifecta1$OfficialTime17))
+
+YearMeans = CONVERT.func(YearMeans)
+YearMeans[1] = "3:37:02"
+YearMeans[2] = "3:45:02"
+Year = c("2015", "2016", "2017")
+AllRunners = c("3:46:26", "3:55:03", "3:58:05")
+
+YearMeans <- data.frame(Year, YearMeans, AllRunners) %>%
+  rename(`Runners of All 3 Marathons` = YearMeans,
+         `All Runners` = AllRunners)
+
+YearMeans
+
+# make into kable
+```
+
+```{r manipulating intervals to be in 5K distance time}
+MarathonTrifecta1$`40K15` = MarathonTrifecta1$`40K15` - MarathonTrifecta1$`35K15`
+MarathonTrifecta1$`35K15` = MarathonTrifecta1$`35K15` - MarathonTrifecta1$`30K15`
+MarathonTrifecta1$`30K15` = MarathonTrifecta1$`30K15` - MarathonTrifecta1$`25K15`
+MarathonTrifecta1$`25K15` = MarathonTrifecta1$`25K15` - MarathonTrifecta1$`20K15`
+MarathonTrifecta1$`20K15` = MarathonTrifecta1$`20K15` -MarathonTrifecta1$`15K15`
+MarathonTrifecta1$`15K15` = MarathonTrifecta1$`15K15` - MarathonTrifecta1$`10K15`
+MarathonTrifecta1$`10K15` = MarathonTrifecta1$`10K15` - MarathonTrifecta1$`5K15`
+
+MarathonTrifecta1$`40K16` = MarathonTrifecta1$`40K16` - MarathonTrifecta1$`35K16`
+MarathonTrifecta1$`35K16` = MarathonTrifecta1$`35K16` - MarathonTrifecta1$`30K16`
+MarathonTrifecta1$`30K16` = MarathonTrifecta1$`30K16` - MarathonTrifecta1$`25K16`
+MarathonTrifecta1$`25K16` = MarathonTrifecta1$`25K16` - MarathonTrifecta1$`20K16`
+MarathonTrifecta1$`20K16` = MarathonTrifecta1$`20K16` - MarathonTrifecta1$`15K16`
+MarathonTrifecta1$`15K16` = MarathonTrifecta1$`15K16` - MarathonTrifecta1$`10K16`
+MarathonTrifecta1$`10K16` = MarathonTrifecta1$`10K16` - MarathonTrifecta1$`5K16`
+```
+
+```{r creating sd variables}
+MarathonTrifecta2 <- MarathonTrifecta1 %>% mutate(stDev2015 = apply(.[(5:12)],1,sd)) %>% mutate(stDev2016 = apply(.[(14:21)],1,sd))
+```
+
+now create model
+```{r}
+MarathonTrifecta3 = MarathonTrifecta2[,c("OfficialTime15", "OfficialTime16", "stDev2015", "stDev2016", "Gender", "Age", "Wave", "OfficialTime17")]
+
+
+y2 = MarathonTrifecta3$OfficialTime17
+X2= model_matrix(MarathonTrifecta3,OfficialTime17~.*.)[,-1]
+var.names = names(X2)
+dim(X2)
+```
+
+```{r}
+set.seed(216)
+cvmod.0=cv.glmnet(y=y2,x=as.matrix(X2),alpha=0)
+set.seed(216)
+cvmod.25=cv.glmnet(y=y2,x=as.matrix(X2),alpha=0.25)
+set.seed(216)
+cvmod.5=cv.glmnet(y=y2,x=as.matrix(X2),alpha=0.5)
+set.seed(216)
+cvmod.75=cv.glmnet(y=y2,x=as.matrix(X2),alpha=0.75)
+set.seed(216)
+cvmod.1=cv.glmnet(y=y2,x=as.matrix(X2),alpha=1)
+
+CV.0.ERROR=cvmod.0$cvm[which(cvmod.0$lambda==cvmod.0$lambda.1se)]
+CV.25.ERROR=cvmod.25$cvm[which(cvmod.25$lambda==cvmod.25$lambda.1se)]
+CV.5.ERROR=cvmod.5$cvm[which(cvmod.5$lambda==cvmod.5$lambda.1se)]
+CV.75.ERROR=cvmod.75$cvm[which(cvmod.75$lambda==cvmod.75$lambda.1se)]
+CV.1.ERROR=cvmod.1$cvm[which(cvmod.1$lambda==cvmod.1$lambda.1se)]
+
+MOD.RESULT2=tibble(alpha=c(0,0.25,0.5,0.75,1),
+                  lambda=c(cvmod.0$lambda.1se,cvmod.25$lambda.1se,
+                           cvmod.5$lambda.1se,cvmod.75$lambda.1se,
+                           cvmod.1$lambda.1se),
+                  CV.Error=c(CV.0.ERROR,CV.25.ERROR,CV.5.ERROR,
+                             CV.75.ERROR,CV.1.ERROR))
+print(MOD.RESULT2)
+```
+```{r warning=FALSE}
+est.alpha=MOD.RESULT2$alpha[which.min(MOD.RESULT2$CV.Error)]
+best.lambda=MOD.RESULT2$lambda[which.min(MOD.RESULT2$CV.Error)]
+
+best.mod=glmnet(y=y2,x=as.matrix(X2),nlambda=1,lambda=best.lambda,alpha=best.alpha)
+best.coef=as.tibble(as.matrix(coef(best.mod)))
+best.coef2=best.coef %>% 
+              mutate(Parameter=c("Int",var.names)) %>%
+              rename(Estimate=s0) %>%
+              select(Parameter,Estimate)
+nonzero.best.coef=best.coef2 %>%
+                    filter(Estimate!=0)
+print(nonzero.best.coef,n=1e3)
+
+MarathonTrifecta3$OfficialTime17.hat=predict(best.mod,newx=as.matrix(X2))
+
+ggplot(MarathonTrifecta3) +
+  geom_point(aes(x=OfficialTime17,y=OfficialTime17.hat),color="lightskyblue2") +
+  geom_abline(a=0,b=1,linetype="dashed") +
+  theme_minimal() +
+  ylab("Predicted 2017 Marathon Time") +
+  xlab("Actual 2017 Marathon Time") +
+  xlim(120,650)
+
+ggplot(MarathonTrifecta3) +
+  geom_histogram(aes(x=OfficialTime17-OfficialTime17.hat),fill="lightskyblue2", binwidth=10) +
+  theme_minimal() +
+  xlab("Residuals") +
+  ylab("Frequency")
+
+# make plot of residuals compared to x
+MarathonTrifecta3 <- MarathonTrifecta3 %>%
+      mutate(Residual = OfficialTime17 - OfficialTime17.hat)
+
+ggplot(MarathonTrifecta3, aes(OfficialTime17, Residual)) +
+      geom_ref_line(h = 0) +
+      geom_point() 
+```
+
+- try without MA runners
+
+
+# Part 1 - trying instead with MA Runners
+
+```{r}
+MarathonAllNonMA = MarathonAll %>%
+  filter(State != "MA")
+
+MarathonAllNonMA1 = MarathonAllNonMA[,c("Age", "Gender", "Year", "Wave", "OfficialTime")]
+
+y3 = MarathonAllNonMA1$OfficialTime
+X3= model_matrix(MarathonAllNonMA1,OfficialTime~.*.)[,-1]
+var.names = names(X3)
+dim(X3)
+```
+
+```{r}
+set.seed(216)
+cvmod.0=cv.glmnet(y=y3,x=as.matrix(X3),alpha=0)
+set.seed(216)
+cvmod.25=cv.glmnet(y=y3,x=as.matrix(X3),alpha=0.25)
+set.seed(216)
+cvmod.5=cv.glmnet(y=y3,x=as.matrix(X3),alpha=0.5)
+set.seed(216)
+cvmod.75=cv.glmnet(y=y3,x=as.matrix(X3),alpha=0.75)
+set.seed(216)
+cvmod.1=cv.glmnet(y=y3,x=as.matrix(X3),alpha=1)
+
+CV.0.ERROR=cvmod.0$cvm[which(cvmod.0$lambda==cvmod.0$lambda.1se)]
+CV.25.ERROR=cvmod.25$cvm[which(cvmod.25$lambda==cvmod.25$lambda.1se)]
+CV.5.ERROR=cvmod.5$cvm[which(cvmod.5$lambda==cvmod.5$lambda.1se)]
+CV.75.ERROR=cvmod.75$cvm[which(cvmod.75$lambda==cvmod.75$lambda.1se)]
+CV.1.ERROR=cvmod.1$cvm[which(cvmod.1$lambda==cvmod.1$lambda.1se)]
+
+MOD.RESULT3=tibble(alpha=c(0,0.25,0.5,0.75,1),
+                  lambda=c(cvmod.0$lambda.1se,cvmod.25$lambda.1se,
+                           cvmod.5$lambda.1se,cvmod.75$lambda.1se,
+                           cvmod.1$lambda.1se),
+                  CV.Error=c(CV.0.ERROR,CV.25.ERROR,CV.5.ERROR,
+                             CV.75.ERROR,CV.1.ERROR))
+print(MOD.RESULT3)
+```
+```{r}
+est.alpha=MOD.RESULT3$alpha[which.min(MOD.RESULT3$CV.Error)]
+best.lambda=MOD.RESULT3$lambda[which.min(MOD.RESULT3$CV.Error)]
+
+best.mod=glmnet(y=y3,x=as.matrix(X3),nlambda=1,lambda=best.lambda,alpha=best.alpha)
+best.coef=as.tibble(as.matrix(coef(best.mod)))
+best.coef2=best.coef %>% 
+              mutate(Parameter=c("Int",var.names)) %>%
+              rename(Estimate=s0) %>%
+              select(Parameter,Estimate)
+nonzero.best.coef=best.coef2 %>%
+                    filter(Estimate!=0)
+print(nonzero.best.coef)
+
+MarathonAllNonMA1$OfficialTime.hat=predict(best.mod,newx=as.matrix(X3))
+
+ggplot(MarathonAllNonMA1) +
+  geom_point(aes(x=OfficialTime,y=OfficialTime.hat),color="lightskyblue2") +
+  geom_abline(a=0,b=1,linetype="dashed") +
+  theme_minimal() +
+  ylab("Predicted Official Marathon Time") +
+  xlab("Actual Official Marathon Time") +
+  xlim(120,650)
+
+ggplot(MarathonAllNonMA1) +
+  geom_histogram(aes(x=OfficialTime-OfficialTime.hat),fill="lightskyblue2", binwidth=10) +
+  theme_minimal() +
+  xlab("Residuals") +
+  ylab("Frequency")
+
+# make plot of residuals compared to x
+MarathonAllNonMA1 <- MarathonAllNonMA1 %>%
+      mutate(Residual = OfficialTime - OfficialTime.hat)
+
+ggplot(MarathonAllNonMA1, aes(OfficialTime, Residual)) +
+      geom_ref_line(h = 0) +
+      geom_point() 
+```
+
+
+

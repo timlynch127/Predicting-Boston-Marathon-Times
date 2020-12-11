@@ -1,0 +1,234 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(readr)
+library(tidyverse)
+
+marathon_results_2015 <- read_csv("boston-results/marathon_results_2015.csv")
+marathon_results_2016 <- read_csv("boston-results/marathon_results_2016.csv")
+marathon_results_2017 <- read_csv("boston-results/marathon_results_2017.csv")
+```
+
+
+```{r}
+head(marathon_results_2015)
+head(marathon_results_2016)
+head(marathon_results_2017)
+```
+
+
+```{r}
+library(chron)
+marathon_results_2015_1 <- marathon_results_2015 %>%
+  select(-X1, -Citizen, -X10, -`Proj Time`) %>%
+  mutate(`5K` = 60 * 24 *as.numeric(times(`5K`))) %>%
+   mutate(`10K` = 60 * 24 *as.numeric(times(`10K`))) %>%
+   mutate(`15K` = 60 * 24 *as.numeric(times(`15K`))) %>%
+   mutate(`20K` = 60 * 24 *as.numeric(times(`20K`))) %>%
+   mutate(`25K` = 60 * 24 *as.numeric(times(`25K`))) %>%
+   mutate(`Half` = 60 * 24 *as.numeric(times(`Half`))) %>%
+   mutate(`30K` = 60 * 24 *as.numeric(times(`30K`))) %>% 
+   mutate(`35K` = 60 * 24 *as.numeric(times(`35K`))) %>% 
+   mutate(`40K` = 60 * 24 *as.numeric(times(`40K`))) %>% 
+   mutate(`Pace` = 60 * 24 *as.numeric(times(`Pace`))) %>% 
+   mutate(`Official Time` = 60 * 24 *as.numeric(times(`Official Time`))) %>%
+   rename(GenderRank=`Gender`, 
+         Gender = `M/F`, 
+         DivisionRank = `Division`) %>%
+   filter(!is.na(`Official Time`))
+
+
+marathon_results_2017_1 <- marathon_results_2017 %>%
+  select(-X1, -Citizen, -X10, -`Proj Time`) %>%
+  mutate(`5K` = 60 * 24 *as.numeric(times(`5K`))) %>%
+   mutate(`10K` = 60 * 24 *as.numeric(times(`10K`))) %>%
+   mutate(`15K` = 60 * 24 *as.numeric(times(`15K`))) %>%
+   mutate(`20K` = 60 * 24 *as.numeric(times(`20K`))) %>%
+   mutate(`25K` = 60 * 24 *as.numeric(times(`25K`))) %>%
+   mutate(`Half` = 60 * 24 *as.numeric(times(`Half`))) %>%
+   mutate(`30K` = 60 * 24 *as.numeric(times(`30K`))) %>% 
+   mutate(`35K` = 60 * 24 *as.numeric(times(`35K`))) %>% 
+   mutate(`40K` = 60 * 24 *as.numeric(times(`40K`))) %>% 
+   mutate(`Pace` = 60 * 24 *as.numeric(times(`Pace`))) %>% 
+   mutate(`Official Time` = 60 * 24 *as.numeric(times(`Official Time`))) %>% 
+   rename(GenderRank=`Gender`, 
+         Gender = `M/F`,
+         DivisionRank = `Division`) %>%
+   filter(!is.na(`Official Time`))
+
+
+marathon_results_2016_1 <- marathon_results_2016 %>%
+  select(-X9, -Citizen, -`Proj Time`) %>%
+  mutate(`5K` = 60 * 24 *as.numeric(times(`5K`))) %>%
+   mutate(`10K` = 60 * 24 *as.numeric(times(`10K`))) %>%
+   mutate(`15K` = 60 * 24 *as.numeric(times(`15K`))) %>%
+   mutate(`20K` = 60 * 24 *as.numeric(times(`20K`))) %>%
+   mutate(`25K` = 60 * 24 *as.numeric(times(`25K`))) %>%
+   mutate(`Half` = 60 * 24 *as.numeric(times(`Half`))) %>%
+   mutate(`30K` = 60 * 24 *as.numeric(times(`30K`))) %>% 
+   mutate(`35K` = 60 * 24 *as.numeric(times(`35K`))) %>% 
+   mutate(`40K` = 60 * 24 *as.numeric(times(`40K`))) %>% 
+   mutate(`Pace` = 60 * 24 *as.numeric(times(`Pace`))) %>% 
+   mutate(`Official Time` = 60 * 24 *as.numeric(times(`Official Time`))) %>%
+  rename(GenderRank=`Gender`, 
+         Gender = `M/F`,
+         DivisionRank = `Division`) %>%
+   filter(!is.na(`Official Time`))
+
+marathon_results_2015_1 <- marathon_results_2015_1 %>% mutate(AgeGroup = "")
+for(i in 1:dim(marathon_results_2015_1)[1]){
+  if(marathon_results_2015_1$Age[i] >= 18 & marathon_results_2015_1$Age[i] <= 39){
+    marathon_results_2015_1$AgeGroup[i] = "18to39" 
+  } else if(marathon_results_2015_1$Age[i] >= 40 & marathon_results_2015_1$Age[i] <= 44){
+    marathon_results_2015_1$AgeGroup[i] = "40to44" 
+  } else if(marathon_results_2015_1$Age[i] >= 45 & marathon_results_2015_1$Age[i] <= 49){
+    marathon_results_2015_1$AgeGroup[i] = "45to49" 
+  } else if(marathon_results_2015_1$Age[i] >= 50 & marathon_results_2015_1$Age[i] <= 54){
+    marathon_results_2015_1$AgeGroup[i] = "50to54" 
+  } else if(marathon_results_2015_1$Age[i] >= 18 & marathon_results_2015_1$Age[i] <= 59){
+    marathon_results_2015_1$AgeGroup[i] = "55to59" 
+  } else if(marathon_results_2015_1$Age[i] >= 18 & marathon_results_2015_1$Age[i] <= 64){
+    marathon_results_2015_1$AgeGroup[i] = "60to64" 
+  } else if(marathon_results_2015_1$Age[i] >= 18 & marathon_results_2015_1$Age[i] <= 69){
+    marathon_results_2015_1$AgeGroup[i] = "65to69" 
+  } else if(marathon_results_2015_1$Age[i] >= 18 & marathon_results_2015_1$Age[i] <= 74){
+    marathon_results_2015_1$AgeGroup[i] = "70to74" 
+  } else if(marathon_results_2015_1$Age[i] >= 70 & marathon_results_2015_1$Age[i] <= 79){
+    marathon_results_2015_1$AgeGroup[i] = "75to79" 
+  } else{
+    marathon_results_2015_1$AgeGroup[i] = "80+" 
+  }
+}
+
+marathon_results_2016_1 <- marathon_results_2016_1 %>% mutate(AgeGroup = "")
+for(i in 1:dim(marathon_results_2016_1)[1]){
+  if(marathon_results_2016_1$Age[i] >= 18 & marathon_results_2016_1$Age[i] <= 39){
+    marathon_results_2016_1$AgeGroup[i] = "18to39" 
+  } else if(marathon_results_2016_1$Age[i] >= 40 & marathon_results_2016_1$Age[i] <= 44){
+    marathon_results_2016_1$AgeGroup[i] = "40to44" 
+  } else if(marathon_results_2016_1$Age[i] >= 45 & marathon_results_2016_1$Age[i] <= 49){
+    marathon_results_2016_1$AgeGroup[i] = "45to49" 
+  } else if(marathon_results_2016_1$Age[i] >= 50 & marathon_results_2016_1$Age[i] <= 54){
+    marathon_results_2016_1$AgeGroup[i] = "50to54" 
+  } else if(marathon_results_2016_1$Age[i] >= 18 & marathon_results_2016_1$Age[i] <= 59){
+    marathon_results_2016_1$AgeGroup[i] = "55to59" 
+  } else if(marathon_results_2016_1$Age[i] >= 18 & marathon_results_2016_1$Age[i] <= 64){
+    marathon_results_2016_1$AgeGroup[i] = "60to64" 
+  } else if(marathon_results_2016_1$Age[i] >= 18 & marathon_results_2016_1$Age[i] <= 69){
+    marathon_results_2016_1$AgeGroup[i] = "65to69" 
+  } else if(marathon_results_2016_1$Age[i] >= 18 & marathon_results_2016_1$Age[i] <= 74){
+    marathon_results_2016_1$AgeGroup[i] = "70to74" 
+  } else if(marathon_results_2016_1$Age[i] >= 70 & marathon_results_2016_1$Age[i] <= 79){
+    marathon_results_2016_1$AgeGroup[i] = "75to79" 
+  } else{
+    marathon_results_2016_1$AgeGroup[i] = "80+" 
+  }
+}
+
+marathon_results_2017_1 <- marathon_results_2017_1 %>% mutate(AgeGroup = "")
+for(i in 1:dim(marathon_results_2017_1)[1]){
+  if(marathon_results_2017_1$Age[i] >= 18 & marathon_results_2017_1$Age[i] <= 39){
+    marathon_results_2017_1$AgeGroup[i] = "18to39" 
+  } else if(marathon_results_2017_1$Age[i] >= 40 & marathon_results_2017_1$Age[i] <= 44){
+    marathon_results_2017_1$AgeGroup[i] = "40to44" 
+  } else if(marathon_results_2017_1$Age[i] >= 45 & marathon_results_2017_1$Age[i] <= 49){
+    marathon_results_2017_1$AgeGroup[i] = "45to49" 
+  } else if(marathon_results_2017_1$Age[i] >= 50 & marathon_results_2017_1$Age[i] <= 54){
+    marathon_results_2017_1$AgeGroup[i] = "50to54" 
+  } else if(marathon_results_2017_1$Age[i] >= 18 & marathon_results_2017_1$Age[i] <= 59){
+    marathon_results_2017_1$AgeGroup[i] = "55to59" 
+  } else if(marathon_results_2017_1$Age[i] >= 18 & marathon_results_2017_1$Age[i] <= 64){
+    marathon_results_2017_1$AgeGroup[i] = "60to64" 
+  } else if(marathon_results_2017_1$Age[i] >= 18 & marathon_results_2017_1$Age[i] <= 69){
+    marathon_results_2017_1$AgeGroup[i] = "65to69" 
+  } else if(marathon_results_2017_1$Age[i] >= 18 & marathon_results_2017_1$Age[i] <= 74){
+    marathon_results_2017_1$AgeGroup[i] = "70to74" 
+  } else if(marathon_results_2017_1$Age[i] >= 70 & marathon_results_2017_1$Age[i] <= 79){
+    marathon_results_2017_1$AgeGroup[i] = "75to79" 
+  } else{
+    marathon_results_2017_1$AgeGroup[i] = "80+" 
+  }
+}
+
+```
+```{r}
+# Question 1 
+# Which of the 50 US States are the fastest and slowest ? 
+
+# military designations : AA, AP, AE
+
+# GU PR VI DC
+
+marathon_results_2015_1 %>% 
+   filter(State != "AA" & State != "AP" & State != "AE" & State != "GU" & State != "PR" & State != "VI" & State !="DC", Country == "USA") %>%
+   group_by(State) %>% 
+   # summarize(mean(`Official Time`)) %>%
+   ggplot(mapping = aes(x=reorder(State, `Official Time`, FUN = median), y=`Official Time`)) +
+   geom_boxplot(outlier.size=1) + 
+   xlab("State") +
+   coord_flip() +
+   ggtitle("2015")
+
+marathon_results_2016_1 %>% 
+   filter(State != "AA" & State != "AP" & State != "AE" & State != "GU" & State != "PR" & State != "VI" & State !="DC", Country == "USA") %>%
+   group_by(State) %>% 
+   # summarize(mean(`Official Time`)) %>%
+   ggplot(mapping = aes(x=reorder(State, `Official Time`, FUN = median), y=`Official Time`)) +
+   geom_boxplot(outlier.size=1) + 
+   xlab("State") +
+   coord_flip() +
+   ggtitle("2016")
+
+
+marathon_results_2017_1 %>% 
+   filter(State != "AA" & State != "AP" & State != "AE" & State != "GU" & State != "PR" & State != "VI" & State !="DC", Country == "USA") %>%
+   group_by(State) %>% 
+   # summarize(mean(`Official Time`)) %>%
+   ggplot(mapping = aes(x=reorder(State, `Official Time`, FUN = median), y=`Official Time`)) +
+   geom_boxplot(outlier.size=1) + 
+   xlab("State") +
+   coord_flip() + 
+   ggtitle("2017")
+
+# try hiding outliers?
+```
+
+```{r,message=FALSE, warning=FALSE}
+# Question 2 
+# How did the pace of professional runners differ across years?
+# elite females: have F preceding Bib #; only runners with non numerical Bib #
+# elite males: have Bib # of 100 or less
+Elite2015 <- marathon_results_2015_1 %>%
+   mutate(Bib = as.numeric(Bib)) %>%
+   filter(is.na(Bib) | (Bib > 0 & Bib < 101)) %>%
+   mutate(Year = "2015")
+   
+Elite2016 <- marathon_results_2016_1 %>%
+   mutate(Bib = as.numeric(Bib)) %>%
+   filter(is.na(Bib) | (Bib > 0 & Bib < 101)) %>%
+   mutate(Year = "2016")   
+
+Elite2017 <- marathon_results_2017_1 %>%
+   mutate(Bib = as.numeric(Bib)) %>%
+   filter(is.na(Bib) | (Bib > 0 & Bib < 101)) %>%
+   mutate(Year = "2017")
+
+EliteRunners <- rbind(Elite2017, Elite2016, Elite2015)
+EliteRunners %>% 
+   group_by(Gender, Year) %>%
+   ggplot(mapping = aes(x = Year, y = `Official Time`, color = Gender)) +
+   geom_boxplot()
+
+# add means
+```
+
+```{r}
+# setwd("/Users/timlynch/Downloads")
+# write_csv(marathon_results_2015_1, "marathon_results_2015_1.csv" )
+# write_csv(marathon_results_2016_1, "marathon_results_2016_1.csv" )
+# write_csv(marathon_results_2017_1, "marathon_results_2017_1.csv" )
+```
+
