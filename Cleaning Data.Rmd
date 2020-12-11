@@ -193,7 +193,6 @@ marathon_results_2017_1 %>%
    coord_flip() + 
    ggtitle("2017")
 
-# try hiding outliers?
 ```
 
 ```{r,message=FALSE, warning=FALSE}
